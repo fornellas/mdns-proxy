@@ -1,0 +1,51 @@
+name: pull_request
+on:
+  pull_request:
+    branches:
+      - '*'
+jobs:
+  linux_386:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: 386
+    secrets: inherit
+  linux_amd64:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: amd64
+    secrets: inherit
+  linux_arm:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: arm
+    secrets: inherit
+  linux_arm64:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: arm64
+    secrets: inherit
+  darwin_amd64:
+    uses: ./.github/workflows/build-darwin.yaml
+    with:
+      GOARCH: amd64
+    secrets: inherit
+  darwin_arm64:
+    uses: ./.github/workflows/build-darwin.yaml
+    with:
+      GOARCH: arm64
+    secrets: inherit
+  coveralls:
+    needs:
+      - linux_386
+      - linux_amd64
+      - linux_arm
+      - linux_arm64
+      - darwin_amd64
+      # - darwin_arm64
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Coveralls Finished
+      uses: coverallsapp/github-action@v1
+      with:
+        parallel-finished: true

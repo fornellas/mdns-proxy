@@ -1,0 +1,79 @@
+name: build-linux
+on:
+  workflow_call:
+    inputs:
+      GOARCH:
+        required: true
+        type: string
+    outputs:
+      artifact:
+        value: mdns-proxy.linux.${{ inputs.GOARCH }}.gz
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+        GOOS: linux
+        GOARCH: ${{ inputs.GOARCH }}
+    steps:
+      # Checkout
+      - name: Checkout
+        uses: actions/checkout@v3
+      # Architecture support
+      - name: Architecture support
+        if: ${{ inputs.GOARCH != '386' && inputs.GOARCH != 'amd64' }}
+        run: |
+          sudo apt-get -y install binfmt-support qemu-user-static
+        shell: bash
+      # Cache
+      - name: Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.cache/
+          key: linux-${{ inputs.GOARCH }}-${{ hashFiles('**/go.sum', '**/*.go') }}
+          restore-keys: linux-${{ inputs.GOARCH }}-
+      # Build
+      - name: Build
+        run: |
+          DOCKER_PLATFORM=linux/${{ inputs.GOARCH }} ./build.sh ci GOOS=linux GOARCH=${{ inputs.GOARCH }}  V=1
+          gzip mdns-proxy.linux.${{ inputs.GOARCH }}
+        shell: bash
+      # Git Status
+      - name: git status
+        run: |
+          GIT_STATUS="$(git status --porcelain)"
+          if [ -n "$GIT_STATUS" ] ; then
+            echo git status
+            echo "$GIT_STATUS"
+            echo git diff
+            git diff
+            exit 1
+          fi
+        shell: bash
+      # Upload
+      - uses: actions/upload-artifact@v3
+        with:
+          name: mdns-proxy.linux.${{ inputs.GOARCH }}.gz
+          path: mdns-proxy.linux.${{ inputs.GOARCH }}.gz
+          if-no-files-found: error
+      # Coveralls
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          file: cover.lcov
+          flag-name: linux.${{ inputs.GOARCH }}
+          parallel: true
+          allow-empty: true
+      # Clean
+      - name: Clean
+        run: DOCKER_PLATFORM=linux/${{ inputs.GOARCH }} ./build.sh clean
+        shell: bash
+      # Git ls-files --others
+      - name: git ls-files --others
+        run: |
+          GIT_LS_FILES_OTHERS="$(git ls-files --others)"
+          if [ -n "$GIT_LS_FILES_OTHERS" ] ; then
+            echo git ls-files --others
+            echo "$GIT_LS_FILES_OTHERS"
+            exit 1
+          fi
+        shell: bash

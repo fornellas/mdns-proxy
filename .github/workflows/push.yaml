@@ -1,0 +1,101 @@
+name: push
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - "v*"
+jobs:
+  linux_386:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: 386
+    secrets: inherit
+  linux_amd64:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: amd64
+    secrets: inherit
+  linux_arm:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: arm
+    secrets: inherit
+  linux_arm64:
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      GOARCH: arm64
+    secrets: inherit
+  darwin_amd64:
+    uses: ./.github/workflows/build-darwin.yaml
+    with:
+      GOARCH: amd64
+    secrets: inherit
+  darwin_arm64:
+    uses: ./.github/workflows/build-darwin.yaml
+    with:
+      GOARCH: arm64
+    secrets: inherit
+  release:
+    concurrency: release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    needs:
+      - linux_386
+      - linux_amd64
+      - linux_arm
+      - linux_arm64
+      - darwin_amd64
+      - darwin_arm64
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.linux_386.outputs.artifact }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.linux_amd64.outputs.artifact }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.linux_arm.outputs.artifact }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.linux_arm64.outputs.artifact }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.darwin_amd64.outputs.artifact }}
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ needs.darwin_arm64.outputs.artifact }}
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ needs.linux_386.outputs.artifact }}
+            ${{ needs.linux_amd64.outputs.artifact }}
+            ${{ needs.linux_arm.outputs.artifact }}
+            ${{ needs.linux_arm64.outputs.artifact }}
+            ${{ needs.darwin_amd64.outputs.artifact }}
+            ${{ needs.darwin_arm64.outputs.artifact }}
+      - name: Add to pkg.go.dev
+        # https://pkg.go.dev/about#adding-a-package
+        run: |
+          set -e
+          curl -v https://proxy.golang.org/github.com/fornellas/mdns-proxy/@v/$(git describe --tags).info
+        shell: bash
+  coveralls:
+    needs:
+      - linux_386
+      - linux_amd64
+      - linux_arm
+      - linux_arm64
+      - darwin_amd64
+      # - darwin_arm64
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+    - name: Coveralls Finished
+      uses: coverallsapp/github-action@v1
+      with:
+        parallel-finished: true
