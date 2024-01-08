@@ -13,7 +13,7 @@ import (
 )
 
 func getScheme(req *http.Request) string {
-	scheme := req.Header.Get("X-Forwarded-Proto")
+	scheme := req.Header.Get("X-Scheme")
 	if scheme == "" {
 		scheme = "http"
 		if req.TLS != nil {
@@ -21,6 +21,28 @@ func getScheme(req *http.Request) string {
 		}
 	}
 	return scheme
+}
+
+func getAddrPort(req *http.Request) (string, int, error) {
+	var addr string
+	var port int
+	var err error
+	addrPort := strings.Split(req.Host, ":")
+	if len(addrPort) < 2 {
+		addr = req.Host
+		port = 80
+		if req.TLS != nil {
+			port = 443
+		}
+	} else {
+		portStr := addrPort[len(addrPort)-1]
+		addr = strings.TrimSuffix(req.Host, fmt.Sprintf(":%s", portStr))
+		port, err = strconv.Atoi(portStr)
+		if err != nil {
+			return "", 0, err
+		}
+	}
+	return addr, port, nil
 }
 
 func handleListMdnsHosts(
@@ -36,6 +58,12 @@ func handleListMdnsHosts(
 	req *http.Request,
 ) {
 	scheme := getScheme(req)
+
+	_, port, err := getAddrPort(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Error identifying host address and port '%s': %v", req.Host, err)
+	}
 
 	services, err := m.BrowseServices(
 		ifaceName,
@@ -73,7 +101,7 @@ func handleListMdnsHosts(
 			scheme,
 			strings.TrimSuffix(host, fmt.Sprintf(".%s", mdnsDomain)),
 			baseDomain,
-			listenPort,
+			port,
 			host,
 		)
 	}
@@ -84,28 +112,6 @@ func handleListMdnsHosts(
 		</html>
 	
 	`)
-}
-
-func getAddrPort(req *http.Request) (string, int, error) {
-	var addr string
-	var port int
-	var err error
-	addrPort := strings.Split(req.Host, ":")
-	if len(addrPort) < 2 {
-		addr = req.Host
-		port = 80
-		if req.TLS != nil {
-			port = 443
-		}
-	} else {
-		portStr := addrPort[len(addrPort)-1]
-		addr = strings.TrimSuffix(req.Host, fmt.Sprintf(":%s", portStr))
-		port, err = strconv.Atoi(portStr)
-		if err != nil {
-			return "", 0, err
-		}
-	}
-	return addr, port, nil
 }
 
 func handleProxyMdnsHosts(
