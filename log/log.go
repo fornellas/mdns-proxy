@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"io"
+	"log"
 
 	"github.com/sirupsen/logrus"
 )
@@ -10,6 +11,11 @@ import (
 type loggerKeyType string
 
 var loggerKey = loggerKeyType("logger")
+
+func init() {
+	// FIXME integrate "log" here
+	log.SetOutput(io.Discard)
+}
 
 // SetLoggerValue returns a copy of the context with a logger value set.
 func SetLoggerValue(

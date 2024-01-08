@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/fornellas/mdns-proxy/cli/lib"
+	"github.com/fornellas/mdns-proxy/cli/server"
 	"github.com/fornellas/mdns-proxy/cli/version"
 	"github.com/fornellas/mdns-proxy/log"
 )
@@ -58,6 +59,9 @@ func init() {
 		&forceColor, "force-color", "", defaultForceColor,
 		"Force colored output",
 	)
+
+	Cmd.AddCommand(server.Cmd)
+	resetFuncs = append(resetFuncs, server.Reset)
 
 	Cmd.AddCommand(version.Cmd)
 	resetFuncs = append(resetFuncs, version.Reset)
