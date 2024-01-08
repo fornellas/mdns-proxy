@@ -47,6 +47,7 @@ func handleListMdnsHosts(
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Error querying mDNS: %v", err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
