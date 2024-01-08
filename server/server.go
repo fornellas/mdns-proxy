@@ -31,7 +31,7 @@ func getAddrPort(req *http.Request) (string, int, error) {
 	if len(addrPort) < 2 {
 		addr = req.Host
 		port = 80
-		if req.TLS != nil {
+		if getScheme(req) == "https" {
 			port = 443
 		}
 	} else {
