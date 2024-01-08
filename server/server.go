@@ -48,7 +48,6 @@ func getAddrPort(req *http.Request) (string, int, error) {
 func handleListMdnsHosts(
 	listenPort int,
 	baseDomain string,
-	m mdns.MDNS,
 	ifaceName string,
 	service string,
 	mdnsDomain string,
@@ -57,6 +56,8 @@ func handleListMdnsHosts(
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
+	m := mdns.NewMDNS()
+
 	scheme := getScheme(req)
 
 	_, port, err := getAddrPort(req)
@@ -116,13 +117,14 @@ func handleListMdnsHosts(
 
 func handleProxyMdnsHosts(
 	baseDomain string,
-	m mdns.MDNS,
 	ifaceName string,
 	mdnsDomain string,
 	proto mdns.Proto,
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
+	m := mdns.NewMDNS()
+
 	addr, _, err := getAddrPort(req)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -180,8 +182,6 @@ func NewServer(
 		return http.Server{}, err
 	}
 
-	m := mdns.NewMDNS()
-
 	proto := mdns.ProtoAny
 	if disableIPv4 {
 		proto = mdns.ProtoInet6
@@ -198,7 +198,6 @@ func NewServer(
 			handleListMdnsHosts(
 				listenPort,
 				baseDomain,
-				m,
 				ifaceName,
 				service,
 				mdnsDomain,
@@ -226,7 +225,6 @@ func NewServer(
 			handleProxyMdnsHosts(
 				// listenPort,
 				baseDomain,
-				m,
 				ifaceName,
 				// service,
 				mdnsDomain,
