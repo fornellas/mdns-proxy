@@ -108,13 +108,10 @@ func getAddrPort(req *http.Request) (string, int, error) {
 }
 
 func handleProxyMdnsHosts(
-	// listenPort int,
 	baseDomain string,
 	m mdns.MDNS,
 	ifaceName string,
-	// service string,
 	mdnsDomain string,
-	// timeout time.Duration,
 	proto mdns.Proto,
 	w http.ResponseWriter,
 	req *http.Request,
