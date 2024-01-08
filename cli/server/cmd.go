@@ -33,9 +33,6 @@ var timeout time.Duration
 var defaultIntterfaceStr = mdns.AnyIface
 var interfaceStr string
 
-var defaultWantUnicastResponse = false
-var wantUnicastResponse bool
-
 var defaultDisableIPv4 = false
 var disableIPv4 bool
 
@@ -117,11 +114,6 @@ func init() {
 	)
 
 	Cmd.PersistentFlags().BoolVarP(
-		&wantUnicastResponse, "want-unicast-response", "w", defaultWantUnicastResponse,
-		"Unicast response desired, as per 5.4 in RFC",
-	)
-
-	Cmd.PersistentFlags().BoolVarP(
 		&disableIPv4, "disable-ipv4", "", defaultDisableIPv4,
 		"Whether to disable usage of IPv4 for MDNS operations. Does not affect discovered addresses.",
 	)
@@ -138,7 +130,6 @@ func Reset() {
 	mdnsDomain = defaultMdnsDomain
 	timeout = defaultTimeout
 	interfaceStr = defaultIntterfaceStr
-	wantUnicastResponse = defaultWantUnicastResponse
 	disableIPv4 = defaultDisableIPv4
 	disableIPv6 = defaultDisableIPv6
 }
