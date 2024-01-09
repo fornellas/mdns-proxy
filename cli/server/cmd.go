@@ -21,7 +21,7 @@ var baseDomain string
 var defaultAddr = ":7234"
 var addr string
 
-var defaultService = "_prometheus-http._tcp"
+var defaultService = "_http._tcp"
 var service string
 
 var defaultMdnsDomain = "local"
