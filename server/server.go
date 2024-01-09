@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -92,12 +93,20 @@ func handleListMdnsHosts(
 					<ul>
 		`)
 
-	hosts := map[string]bool{}
+	hosts := []string{}
 	for _, service := range services {
-		hosts[service.Host] = true
+		if service.Port != 80 {
+			continue
+		}
+		hosts = append(hosts, service.Host)
 	}
+	sort.Strings(hosts)
 
-	for host := range hosts {
+	var last_host string
+	for _, host := range hosts {
+		if host == last_host {
+			continue
+		}
 		fmt.Fprintf(w, `					<li><a href="%s://%s.%s:%d/">%s</a></li>`,
 			scheme,
 			strings.TrimSuffix(host, fmt.Sprintf(".%s", mdnsDomain)),
@@ -105,6 +114,7 @@ func handleListMdnsHosts(
 			port,
 			host,
 		)
+		last_host = host
 	}
 
 	fmt.Fprint(w, `
