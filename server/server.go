@@ -205,6 +205,10 @@ func NewServer(
 		hostSlice := strings.Split(req.Host, ":")
 		host := hostSlice[0]
 		if host == baseDomain {
+			if req.URL.Path != "/" {
+				http.Error(w, "404 Not Found", http.StatusNotFound)
+				return
+			}
 			handleListMdnsHosts(
 				listenPort,
 				baseDomain,
