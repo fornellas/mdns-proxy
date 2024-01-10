@@ -57,7 +57,13 @@ func handleListMdnsHosts(
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
-	m := mdns.NewMDNS()
+	m, err := mdns.NewMDNS()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Error getting mDNS client: %v", err)
+		return
+	}
+	defer m.Close()
 
 	scheme := getScheme(req)
 
@@ -133,7 +139,13 @@ func handleProxyMdnsHosts(
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
-	m := mdns.NewMDNS()
+	m, err := mdns.NewMDNS()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Error getting mDNS client: %v", err)
+		return
+	}
+	defer m.Close()
 
 	addr, _, err := getAddrPort(req)
 	if err != nil {
