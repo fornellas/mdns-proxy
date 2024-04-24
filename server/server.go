@@ -249,12 +249,9 @@ func NewServer(
 			mdnsHost = fmt.Sprintf("%s.%s", mdnsHost, mdnsDomain)
 			req.Header["Host"] = []string{mdnsHost}
 			handleProxyMdnsHosts(
-				// listenPort,
 				baseDomain,
 				ifaceName,
-				// service,
 				mdnsDomain,
-				// timeout,
 				proto,
 				w,
 				req,
