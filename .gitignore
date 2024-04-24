@@ -1,4 +1,5 @@
 /.cache/
+/version/.version
 /cover.html
 /cover.lcov
 /cover.txt
