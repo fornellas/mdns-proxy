@@ -65,30 +65,15 @@ func (p Proto) String() string {
 }
 
 type MDNS struct {
-	dbusConn    *dbus.Conn
-	avahiServer *avahi.Server
 }
 
 func NewMDNS() (*MDNS, error) {
 	var m MDNS
-	var err error
-
-	m.dbusConn, err = dbus.SystemBus()
-	if err != nil {
-		return nil, err
-	}
-
-	m.avahiServer, err = avahi.ServerNew(m.dbusConn)
-	if err != nil {
-		return nil, err
-	}
-
 	return &m, nil
 }
 
 func (m *MDNS) Close() error {
-	m.avahiServer.Close()
-	return m.dbusConn.Close()
+	return nil
 }
 
 func getIfaceIdxFromName(ifaceName string) (int32, error) {
@@ -118,7 +103,19 @@ func (m *MDNS) BrowseServices(
 		return nil, err
 	}
 
-	sb, err := m.avahiServer.ServiceBrowserNew(
+	dbusConn, err := dbus.SystemBus()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { dbusConn.Close() }()
+
+	avahiServer, err := avahi.ServerNew(dbusConn)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { avahiServer.Close() }()
+
+	sb, err := avahiServer.ServiceBrowserNew(
 		iface,
 		int32(proto),
 		serviceType,
@@ -136,7 +133,7 @@ func (m *MDNS) BrowseServices(
 	for {
 		select {
 		case avahiService = <-sb.AddChannel:
-			avahiService, err = m.avahiServer.ResolveService(
+			avahiService, err = avahiServer.ResolveService(
 				avahiService.Interface,
 				avahiService.Protocol,
 				avahiService.Name,
@@ -177,7 +174,19 @@ func (m *MDNS) ResolveHost(
 		return nil, err
 	}
 
-	hostName, err := m.avahiServer.ResolveHostName(
+	dbusConn, err := dbus.SystemBus()
+	if err != nil {
+		return nil, err
+	}
+	defer func() { dbusConn.Close() }()
+
+	avahiServer, err := avahi.ServerNew(dbusConn)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { avahiServer.Close() }()
+
+	hostName, err := avahiServer.ResolveHostName(
 		iface,
 		int32(proto),
 		host,
