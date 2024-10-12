@@ -1,12 +1,16 @@
 package mdns
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/holoplot/go-avahi"
+	"github.com/sirupsen/logrus"
+
+	"github.com/fornellas/mdns-proxy/log"
 )
 
 type Service struct {
@@ -91,30 +95,46 @@ func getIfaceIdxFromName(ifaceName string) (int32, error) {
 }
 
 func (m *MDNS) BrowseServices(
+	ctx context.Context,
 	ifaceName string,
 	proto Proto,
 	serviceType string,
 	domain string,
 	timeout time.Duration,
 ) ([]Service, error) {
+	logger := log.GetLogger(ctx)
+	logger.WithFields(logrus.Fields{
+		"ifaceName":   ifaceName,
+		"proto":       proto,
+		"serviceType": serviceType,
+		"domain":      domain,
+		"timeout":     timeout,
+	}).Info("MDNS.BrowseServices")
+
 	var iface int32
+	logger.WithFields(logrus.Fields{
+		"ifaceName": ifaceName,
+	}).Info("MDNS.getIfaceIdxFromName")
 	iface, err := getIfaceIdxFromName(ifaceName)
 	if err != nil {
 		return nil, err
 	}
 
+	logger.Info("SystemBus")
 	dbusConn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, err
 	}
 	defer func() { dbusConn.Close() }()
 
+	logger.Info("avahi.ServerNew")
 	avahiServer, err := avahi.ServerNew(dbusConn)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { avahiServer.Close() }()
 
+	logger.Info("avahiServer.ServiceBrowserNew")
 	sb, err := avahiServer.ServiceBrowserNew(
 		iface,
 		int32(proto),
@@ -131,8 +151,11 @@ func (m *MDNS) BrowseServices(
 	timeoutCh := time.After(timeout)
 	var done bool
 	for {
+		logger.Info("for")
 		select {
 		case avahiService = <-sb.AddChannel:
+			logger.Info("<-sb.AddChannel")
+			logger.Info("avahiServer.ResolveService")
 			avahiService, err = avahiServer.ResolveService(
 				avahiService.Interface,
 				avahiService.Protocol,
@@ -153,6 +176,7 @@ func (m *MDNS) BrowseServices(
 
 			services = append(services, service)
 		case <-timeoutCh:
+			logger.Info("<-timeoutCh")
 			done = true
 		}
 		if done {

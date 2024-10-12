@@ -49,6 +49,7 @@ var Cmd = &cobra.Command{
 		logger := log.GetLogger(ctx)
 
 		srv, err := server.NewServer(
+			ctx,
 			addr,
 			baseDomain,
 			interfaceStr,

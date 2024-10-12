@@ -63,13 +63,13 @@ func (cf *ColorFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 	dataBuff := &bytes.Buffer{}
 	sort.Strings(keys)
-	for _, key := range keys {
-		var i string
+	for i, key := range keys {
+		var j string
 		if len(key) > 0 {
 			fmt.Fprintf(dataBuff, "  %s:", key)
-			i = "  "
+			j = "  "
 		} else {
-			i = ""
+			j = ""
 		}
 		// FIXME detect new lines with "\n\x1b[0m" at the end
 		dataStr := strings.TrimSuffix(fmt.Sprintf("%v", entry.Data[key]), "\n")
@@ -77,12 +77,15 @@ func (cf *ColorFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 			if len(key) > 0 {
 				fmt.Fprintf(dataBuff, "\n")
 			}
-			fmt.Fprintf(dataBuff, "%s", indent.String(fmt.Sprintf("%s  ", i), dataStr))
+			fmt.Fprintf(dataBuff, "%s", indent.String(fmt.Sprintf("%s  ", j), dataStr))
 		} else {
 			if len(key) > 0 {
 				fmt.Fprintf(dataBuff, " ")
 			}
 			fmt.Fprintf(dataBuff, "  %s", dataStr)
+		}
+		if i < len(keys)-1 {
+			fmt.Fprintf(dataBuff, "\n")
 		}
 	}
 	if len(keys) > 0 {
