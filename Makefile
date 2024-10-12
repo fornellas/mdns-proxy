@@ -1,127 +1,217 @@
 help:
 
+##
+## Make
+##
+
 SHELL := /bin/bash
 .ONESHELL:
 
-NAME := $(notdir $(CURDIR))
+MAKE_MAJOR_VERSION := $(word 1, $(subst ., , $(MAKE_VERSION)))
+MAKE_REQUIRED_MAJOR_VERSION := 4
+MAKE_BAD_VERSION := $(shell [ $(MAKE_MAJOR_VERSION) -lt $(MAKE_REQUIRED_MAJOR_VERSION) ] && echo true)
+ifeq ($(MAKE_BAD_VERSION),true)
+  $(error Make version is below $(MAKE_REQUIRED_MAJOR_VERSION), please update it.)
+endif
 
+##
+## uname
+##
+
+SHELL_UNAME_S := uname -s
+UNAME_S := $(shell $(SHELL_UNAME_S))
+ifneq ($(.SHELLSTATUS),0)
+$(error $(SHELL_UNAME_S): $(UNAME_S))
+endif
+
+SHELL_UNAME_M := uname -m
+UNAME_M := $(shell $(SHELL_UNAME_M))
+ifneq ($(.SHELLSTATUS),0)
+$(error $(SHELL_UNAME_M): $(UNAME_M))
+endif
+
+##
+## Cache
+##
+
+ifeq ($(UNAME_S),Linux)
 XDG_CACHE_HOME ?= $(HOME)/.cache
-RESONANCE_CACHE ?= $(XDG_CACHE_HOME)/rrb
-
-export GOVERSION := $(shell cat .goversion)
-ifneq ($(.SHELLSTATUS),0)
-  $(error cat .goversion failed! output was $(GOVERSION))
+else
+ifeq ($(UNAME_S),Darwin)
+XDG_CACHE_HOME ?= $(HOME)/Library/Caches
+else
+$(error Unsupported system: $(UNAME_S))
+endif
 endif
 
-GOOS_SHELL := case $$(uname -s) in Linux) echo linux;; Darwin) echo darwin;; *) echo Unknown system $$(uname -s) 1>&2 ; exit 1 ;; esac
-export GOOS ?= $(shell $(GOOS_SHELL))
-ifneq ($(.SHELLSTATUS),0)
-  $(error GOOS failed! output was $(GOOS))
-endif
-.PHONY: GOOS
-GOOS:
-	@echo $(GOOS)
+CACHE_PATH ?= $(XDG_CACHE_HOME)/mdns-proxy
 
-GOARCH_NATIVE_SHELL := case $$(uname -m) in i[23456]86) echo 386;; x86_64) echo amd64;; armv6l|armv7l) echo arm;; aarch64) echo arm64;; *) echo Unknown machine $$(uname -m) 1>&2 ; exit 1 ;; esac
-GOARCH_NATIVE := $(shell $(GOARCH_NATIVE_SHELL))
+##
+## Go
+##
+
+SHELL_GO_VERSION := cat go.mod | awk '/^go /{print $$2}'
+export GOVERSION := go$(shell $(SHELL_GO_VERSION))
 ifneq ($(.SHELLSTATUS),0)
-  $(error GOARCH failed! output was $(GOARCH))
+  $(error $(SHELL_GO_VERSION): $(GOVERSION))
+endif
+
+SHELL_GOOS := case $(UNAME_S) in Linux) echo linux;; Darwin) echo darwin;; *) echo Unknown system $(UNAME_S) 1>&2 ; exit 1 ;; esac
+export GOOS ?= $(shell $(SHELL_GOOS))
+ifneq ($(.SHELLSTATUS),0)
+  $(error $(SHELL_GOOS): $(GOOS))
+endif
+
+SHELL_GOARCH_NATIVE := case $(UNAME_M) in i[23456]86) echo 386;; x86_64) echo amd64;; armv6l|armv7l) echo arm;; aarch64|arm64) echo arm64;; *) echo Unknown machine $(UNAME_M) 1>&2 ; exit 1 ;; esac
+GOARCH_NATIVE := $(shell $(SHELL_GOARCH_NATIVE))
+ifneq ($(.SHELLSTATUS),0)
+  $(error $(SHELL_GOARCH_NATIVE): $(GOARCH_NATIVE))
 endif
 
 export GOARCH ?= $(GOARCH_NATIVE)
+
+SHELL_GOARCH_DOWNLOAD := case $(GOARCH_NATIVE) in 386) echo 386;; amd64) echo amd64;; arm) echo armv6l;; arm64) echo arm64;; *) echo GOARCH $(GOARCH_NATIVE) 1>&2 ; exit 1 ;; esac
+GOARCH_DOWNLOAD ?= $(shell $(SHELL_GOARCH_DOWNLOAD))
 ifneq ($(.SHELLSTATUS),0)
-  $(error GOARCH_NATIVE failed! output was $(GOARCH_NATIVE))
+  $(error $(SHELL_GOARCH_DOWNLOAD): $(GOARCH_DOWNLOAD))
 endif
 
-GOARCH_DOWNLOAD_SHELL := case $(GOARCH_NATIVE) in 386) echo 386;; amd64) echo amd64;; arm) echo armv6l;; arm64) echo arm64;; *) echo GOARCH $$(GOARCH_NATIVE) 1>&2 ; exit 1 ;; esac
-GOARCH_DOWNLOAD ?= $(shell $(GOARCH_DOWNLOAD_SHELL))
-export GOARCH ?= $(GOARCH_DOWNLOAD)
-ifneq ($(.SHELLSTATUS),0)
-  $(error GOARCH_DOWNLOAD failed! output was $(GOARCH_DOWNLOAD))
-endif
-
-.PHONY: GOARCH
-GOARCH:
-	@echo $(GOARCH)
-
-GOROOT_PREFIX := $(RESONANCE_CACHE)/GOROOT
+GOROOT_PREFIX := $(CACHE_PATH)/GOROOT
 GOROOT := $(GOROOT_PREFIX)/$(GOVERSION).$(GOOS)-$(GOARCH_DOWNLOAD)
+
 GO := $(GOROOT)/bin/go
-.PHONY: GOROOT
-GOROOT:
-	@echo $(GOROOT)
 PATH := $(GOROOT)/bin:$(PATH)
 
-export GOCACHE := $(RESONANCE_CACHE)/GOCACHE
-.PHONY: GOCACHE
-GOCACHE:
-	@echo $(GOCACHE)
-export GOMODCACHE := $(RESONANCE_CACHE)/GOMODCACHE
+export GOPATH := $(CACHE_PATH)/GOPATH
+PATH := $(GOPATH)/bin:$(PATH)
 
-.PHONY: GOMODCACHE
-GOMODCACHE:
-	@echo $(GOMODCACHE)
+export GOCACHE := $(CACHE_PATH)/GOCACHE
 
-GO_BUILD_FLAGS :=
+export GOMODCACHE := $(CACHE_PATH)/GOMODCACHE
 
-GOARCHS_AGENT := 386 amd64 arm arm64
+##
+## Go source
+##
 
-GOIMPORTS_VERSION :=  v0.15.0
-GOIMPORTS := $(GO) run golang.org/x/tools/cmd/goimports@$(GOIMPORTS_VERSION)
-GOIMPORTS_LOCAL := github.com/fornellas/$(NAME)/
+SHELL_GO_MODULE := cat go.mod | awk '/^module /{print $$2}'
+export GO_MODULE := $(shell $(SHELL_GO_MODULE))
+ifneq ($(.SHELLSTATUS),0)
+  $(error $(SHELL_GO_MODULE): $(GO_MODULE))
+endif
 
-STATICCHECK_VERSION := v0.4.6
-STATICCHECK := $(GO) run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION)
+GO_SOURCE_FILES := $$(find $$PWD -name \*.go ! -path '$(CACHE_PATH)/*')
 
-MISSPELL_VERSION := v0.3.4
-MISSPELL := $(GO) run github.com/client9/misspell/cmd/misspell@$(MISSPELL_VERSION)
+##
+## goimports
+##
 
-GOCYCLO_VERSION := v0.6.0
-GOCYCLO := $(GO) run github.com/fzipp/gocyclo/cmd/gocyclo@$(GOCYCLO_VERSION)
+GOIMPORTS := $(GO) run golang.org/x/tools/cmd/goimports
+GOIMPORTS_LOCAL := $(GO_MODULE)
+
+##
+## govulncheck
+##
+
+GOVULNCHECK := $(GO) run golang.org/x/vuln/cmd/govulncheck
+LINT_GOVULNCHECK_DISABLE :=
+
+##
+## staticcheck
+##
+
+STATICCHECK := $(GO) run honnef.co/go/tools/cmd/staticcheck
+export STATICCHECK_CACHE := $(CACHE_PATH)/staticcheck
+
+##
+## misspell
+##
+
+MISSPELL := $(GO) run github.com/client9/misspell/cmd/misspell
+
+##
+## gocyclo
+##
+
+GOCYCLO_IGNORE_REGEX := '.*\.pb\.go'
+GOCYCLO := $(GO) run github.com/fzipp/gocyclo/cmd/gocyclo
 GOCYCLO_OVER := 15
 
-GO_TEST_VERSION := v0.0.6
-GO_TEST := $(GO) run github.com/rakyll/gotest@$(GO_TEST_VERSION) ./...
-GO_TEST_FLAGS := -coverprofile cover.txt -coverpkg ./... -count=1 -failfast
-ifeq ($(V),1)
-GO_TEST_FLAGS := -v $(GO_TEST_FLAGS)
-endif
+##
+## go test
+##
+
+GO_TEST := $(GO) run github.com/rakyll/gotest
+
+GO_TEST_FLAGS :=
+
+define go_test_build_flags
+$(value GO_TEST_BUILD_FLAGS_$(1))
+endef
+
+GO_TEST_BUILD_FLAGS :=
 # https://go.dev/doc/articles/race_detector#Requirements
+ifneq ($(GO_TEST_BUILD_FLAGS_NO_RACE),1)
 ifeq ($(GOOS)/$(GOARCH),linux/amd64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_linux_amd64 := -race $(GO_TEST_BUILD_FLAGS)
 endif
 ifeq ($(GOOS)/$(GOARCH),linux/ppc64le)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_linux_ppc64le := -race $(GO_TEST_BUILD_FLAGS)
 endif
 # https://github.com/golang/go/issues/29948
 # ifeq ($(GOOS)/$(GOARCH),linux/arm64)
-# GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+#_LINUX_ARM64 GO_TEST_BUILD_FLAGS := -race $(GO_TEST_BUILD_FLAGS)
 # endif
 ifeq ($(GOOS)/$(GOARCH),freebsd/amd64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_freebsd_amd64 := -race $(GO_TEST_BUILD_FLAGS)
 endif
 ifeq ($(GOOS)/$(GOARCH),netbsd/amd64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_netbsd_amd64 := -race $(GO_TEST_BUILD_FLAGS)
 endif
 ifeq ($(GOOS)/$(GOARCH),darwin/amd64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_darwin_amd64 := -race $(GO_TEST_BUILD_FLAGS)
 endif
 ifeq ($(GOOS)/$(GOARCH),darwin/arm64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_darwin_arm64 := -race $(GO_TEST_BUILD_FLAGS)
 endif
 ifeq ($(GOOS)/$(GOARCH),windows/amd64)
-GO_TEST_FLAGS := -race $(GO_TEST_FLAGS)
+GO_TEST_BUILD_FLAGS_windows_amd64 := -race $(GO_TEST_BUILD_FLAGS)
+endif
 endif
 
-GCOV2LCOV_VERSION := v1.0.6
-GCOV2LCOV := $(GO) run github.com/jandelgado/gcov2lcov@$(GCOV2LCOV_VERSION)
+GO_TEST_PACKAGES_DEFAULT := $(GO_MODULE)/...
+GO_TEST_PACKAGES := $(GO_TEST_PACKAGES_DEFAULT)
 
-RRB_VERSION := latest
-RRB := $(GO) run github.com/fornellas/rrb@$(RRB_VERSION)
+GO_TEST_BINARY_FLAGS :=
+ifneq ($(GO_TEST_NO_COVER),1)
+GO_TEST_BINARY_FLAGS := -coverprofile cover.txt -coverpkg $(GO_TEST_PACKAGES) $(GO_TEST_BINARY_FLAGS)
+endif
+GO_TEST_BINARY_FLAGS := -count=1 $(GO_TEST_BINARY_FLAGS)
+GO_TEST_BINARY_FLAGS := -failfast $(GO_TEST_BINARY_FLAGS)
+
+GO_TEST_BINARY_FLAGS_EXTRA :=
+
+GCOV2LCOV := $(GO) run github.com/jandelgado/gcov2lcov
+
+GO_TEST_MIN_COVERAGE := 0
+
+##
+## go build
+##
+
+GO_BUILD_FLAGS :=
+
+GO_BUILD_FLAGS_COMMON :=
+
+##
+## rrb
+##
+
+RRB := $(GO) run github.com/fornellas/rrb
 RRB_DEBOUNCE ?= 500ms
+RRB_IGNORE_PATTERN ?=
 RRB_LOG_LEVEL ?= info
-RRB_IGNORE_PATTERN ?= '.cache/**/*'
-RRB_PATTERN ?= '**/*.{go},Makefile'
+RRB_PATTERN ?= '**/*.go,Makefile'
+RRB_MAKE_TARGET ?= ci
 RRB_EXTRA_CMD ?= true
 
 ##
@@ -173,6 +263,7 @@ clean: clean-go
 .PHONY: lint-help
 lint-help:
 	@echo 'lint: runs all linters'
+	@echo '  use LINT_GOVULNCHECK_DISABLE=1 to disable govulncheck (faster)'
 help: lint-help
 
 .PHONY: lint
@@ -195,38 +286,43 @@ lint: go-mod-tidy
 
 .PHONY: goimports
 goimports: go go-mod-tidy
-	$(GOIMPORTS) -w -local $(GOIMPORTS_LOCAL) $$(find . -name \*.go ! -path './.cache/*')
+	$(GOIMPORTS) -w -local $(GOIMPORTS_LOCAL) $(GO_SOURCE_FILES)
 lint: goimports
+
+# govulncheck
+
+ifneq ($(LINT_GOVULNCHECK_DISABLE),1)
+.PHONY: govulncheck
+govulncheck: go-generate go go-mod-tidy
+	$(GOVULNCHECK) $(GO_MODULE)/...
+lint: govulncheck
+endif
 
 # staticcheck
 
 .PHONY: staticcheck
 staticcheck: go go-mod-tidy go-generate goimports
-	$(STATICCHECK) ./...
+	$(STATICCHECK) $(GO_MODULE)/...
 lint: staticcheck
 
 .PHONY: clean-staticcheck
 clean-staticcheck:
-	rm -rf $(HOME)/.cache/staticcheck/
+	rm -rf $(STATICCHECK_CACHE)
 clean: clean-staticcheck
 
 # misspell
 
 .PHONY: misspell
 misspell: go go-mod-tidy go-generate
-	$(MISSPELL) -error .
+	$(MISSPELL) -error $(GO_SOURCE_FILES)
 lint: misspell
-
-.PHONY: clean-misspell
-clean-misspell:
-	rm -rf $(HOME)/.cache/misspell/
-clean: clean-misspell
 
 # gocyclo
 
 .PHONY: gocyclo
 gocyclo: go go-generate go-mod-tidy
-	$(GOCYCLO) -over $(GOCYCLO_OVER) -avg .
+	$(GOCYCLO) -over $(GOCYCLO_OVER) -avg -ignore $(GOCYCLO_IGNORE_REGEX) .
+
 lint: gocyclo
 
 # go vet
@@ -236,11 +332,20 @@ go-vet: go go-mod-tidy go-generate
 	$(GO) vet ./...
 lint: go-vet
 
+# go-update
+.PHONY: go-update
+go-update: go
+	set -e
+	set -o pipefail
+	$(GO) mod edit -go $$(curl -s https://go.dev/VERSION?m=text | head -n 1 | cut -c 3-)
+update-deps: go-update
+
 # go get -u
 
-.PHONY: go-get-u
-go-get-u: go go-mod-tidy
+.PHONY: go-get-u-t
+go-get-u-t: go go-mod-tidy
 	$(GO) get -u ./...
+update-deps: go-get-u-t
 
 ##
 ## Test
@@ -250,17 +355,29 @@ go-get-u: go go-mod-tidy
 
 .PHONY: test-help
 test-help:
-	@echo 'test: runs all tests; use V=1 for verbose'
+	@echo 'test: runs all tests:'
+	@echo '  use GO_TEST_BUILD_FLAGS to set test build flags (see `go test build`)'
+	@echo '  use GO_TEST_FLAGS to set test flags (see `go help test`)'
+	@echo '  use GO_TEST_PACKAGES to set packages to test (default: $(GO_TEST_PACKAGES_DEFAULT))'
+	@echo '  use GO_TEST_BINARY_FLAGS_EXTRA to pass extra flags to the test binary (see `go help testflag`)'
+	@echo '  use GO_TEST_NO_COVER=1 to disable code coverage (faster)'
+	@echo '  use GO_TEST_BUILD_FLAGS_NO_RACE=1 to disable -race build flag (faster)'
 help: test-help
 
 .PHONY: test
-test:
 
 # gotest
 
 .PHONY: gotest
 gotest: go go-generate
-	$(GO_TEST) $(GO_TEST_FLAGS) $(GO_BUILD_FLAGS)
+	$(GO_TEST) \
+		$(GO_BUILD_FLAGS_COMMON) \
+		$(call go_test_build_flags,$(GOOS)_$(GOARCH_NATIVE)) \
+		$(GO_TEST_FLAGS) \
+		$(GO_TEST_PACKAGES) \
+		$(GO_TEST_BINARY_FLAGS) \
+		$(GO_TEST_BINARY_FLAGS_EXTRA)
+gotest:
 test: gotest
 
 .PHONY: clean-gotest
@@ -271,6 +388,7 @@ clean: clean-gotest
 
 # cover.html
 
+ifneq ($(GO_TEST_NO_COVER),1)
 .PHONY: cover.html
 cover.html: go gotest
 	$(GO) tool cover -html cover.txt -o cover.html
@@ -293,32 +411,51 @@ clean-cover.lcov:
 	rm -f cover.lcov
 clean: clean-cover.lcov
 
-# cover-func
+# test-coverage
 
-.PHONY: cover-func
-cover-func: go cover.html
-	@echo -n "Coverage: "
-	@$(GO) tool cover -func cover.txt | awk '/^total:/{print $$NF}'
-test: cover-func
+ifeq ($(GOOS),linux)
+.PHONY: test-coverage
+test-coverage: go cover.txt
+	PERCENT=$$($(GO) tool cover -func cover.txt | awk '/^total:/{print $$NF}' | tr -d % | cut -d. -f1) && \
+		echo "Coverage: $$PERCENT%" && \
+		if [ $$PERCENT -lt $(GO_TEST_MIN_COVERAGE) ] ; then \
+			echo "Minimum coverage required: $(GO_TEST_MIN_COVERAGE)%" ; \
+			exit 1 ; \
+		fi
+test: test-coverage
+endif
+
+endif
 
 ##
 ## Build
 ##
 
+# help
+
 .PHONY: build-help
 build-help:
 	@echo 'build: build everything'
+	@echo '  use GO_BUILD_FLAGS to add extra build flags (see `go help build`)'
 help: build-help
+
+# build
 
 .PHONY: build
 build: go go-generate
-	$(GO) build -o $(NAME).$(GOOS).$(GOARCH) $(GO_BUILD_FLAGS) .
+	$(GO) \
+		build \
+		-o mdns-proxy.$(GOOS).$(GOARCH) \
+		$(GO_BUILD_FLAGS_COMMON) \
+		$(GO_BUILD_FLAGS) \
+		.
 
 .PHONY: clean-build
 clean-build:
 	$(GO) env &>/dev/null && $(GO) clean -r -cache -modcache
-	rm -f version/.version
-	rm -f $(NAME).*.*
+	rm -f internal/.version
+	rm -f internal/.git-toplevel
+	rm -f mdns-proxy.*.*
 clean: clean-build
 
 ##
@@ -328,10 +465,30 @@ clean: clean-build
 .PHONY: ci-help
 ci-help:
 	@echo 'ci: runs the whole build'
+	@echo 'ci-dev: similar to ci, but uses options that speed up the build, at the expense of minimal signal loss;'
 help: ci-help
 
 .PHONY: ci
 ci: lint test build
+
+.PHONY: ci-dev
+ci-dev:
+	$(MAKE) $(MFLAGS) MAKELEVEL= ci \
+		LINT_GOVULNCHECK_DISABLE=1 \
+		GO_TEST_NO_COVER=1 \
+		GO_TEST_BUILD_FLAGS_NO_RACE=1
+
+##
+## update
+##
+
+.PHONY: update-deps-help
+update-deps-help:
+	@echo 'update-deps: Update all dependencies'
+help: update-deps-help
+
+.PHONY: update-deps
+update-deps:
 
 ##
 ## rrb
@@ -341,7 +498,14 @@ ifeq ($(GOOS),linux)
 
 .PHONY: rrb-help
 rrb-help:
-	@echo 'rrb: rerun build automatically on file changes then runs RRB_EXTRA_CMD'
+	@echo 'rrb: rerun build automatically on file changes'
+	@echo ' use RRB_DEBOUNCE to set debounce (default: $(RRB_DEBOUNCE))'
+	@echo ' use RRB_IGNORE_PATTERN to set ignore pattern (default: $(RRB_IGNORE_PATTERN))'
+	@echo ' use RRB_LOG_LEVEL to set log level (default: $(RRB_LOG_LEVEL))'
+	@echo ' use RRB_PATTERN to set the pattern (default: $(RRB_PATTERN))'
+	@echo ' use RRB_MAKE_TARGET to set the make target (default: $(RRB_MAKE_TARGET))'
+	@echo ' use RRB_EXTRA_CMD to set a command to run after the build is successful (default: $(RRB_EXTRA_CMD))'
+	@echo 'rrb-dev: similar to rrb, but with RRB_MAKE_TARGET=ci-dev'
 help: rrb-help
 
 .PHONY: rrb
@@ -349,10 +513,18 @@ rrb: go
 	$(RRB) \
 		--debounce $(RRB_DEBOUNCE) \
 		--ignore-pattern $(RRB_IGNORE_PATTERN) \
-		--log-level $(RRB_LOG_LEVEL) \
+		--log-level=$(RRB_LOG_LEVEL) \
 		--pattern $(RRB_PATTERN) \
 		-- \
-		sh -c "$(MAKE) $(MFLAGS) ci && $(RRB_EXTRA_CMD)"
+		sh -c "$(MAKE) $(MFLAGS) $(RRB_MAKE_TARGET) && $(RRB_EXTRA_CMD)"
+
+.PHONY: rrb-dev
+rrb-dev:
+	$(MAKE) $(MFLAGS) MAKELEVEL= \
+		rrb \
+			RRB_MAKE_TARGET=ci-dev
+
+endif
 
 ##
 ## shell
@@ -366,13 +538,12 @@ help: shell-help
 .PHONY: shell
 shell:
 	@echo Make targets:
-	@$(MAKE) help
+	@$(MAKE) help MAKELEVEL=
 	@PATH=$(GOROOT)/bin:$(PATH) \
 		GOOS=$(GOOS) \
 		GOARCH=$(GOARCH) \
 		GOROOT=$(GOROOT) \
 		GOCACHE=$(GOCACHE) \
 		GOMODCACHE=$(GOMODCACHE) \
+		STATICCHECK_CACHE=$(STATICCHECK_CACHE) \
 		bash --rcfile .bashrc
-
-endif

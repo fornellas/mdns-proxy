@@ -2,39 +2,41 @@ name: push
 on:
   push:
     branches:
-      - 'master'
+      - "master"
     tags:
       - "v*"
 jobs:
   linux_386:
     uses: ./.github/workflows/build-linux.yaml
     with:
+      upload-artifact: ${{ startsWith(github.ref, 'refs/tags/') }}
       GOARCH: 386
     secrets: inherit
   linux_amd64:
     uses: ./.github/workflows/build-linux.yaml
     with:
+      upload-artifact: ${{ startsWith(github.ref, 'refs/tags/') }}
       GOARCH: amd64
-    secrets: inherit
-  linux_arm:
-    uses: ./.github/workflows/build-linux.yaml
-    with:
-      GOARCH: arm
     secrets: inherit
   linux_arm64:
     uses: ./.github/workflows/build-linux.yaml
     with:
+      upload-artifact: ${{ startsWith(github.ref, 'refs/tags/') }}
       GOARCH: arm64
     secrets: inherit
   darwin_amd64:
     uses: ./.github/workflows/build-darwin.yaml
     with:
+      upload-artifact: ${{ startsWith(github.ref, 'refs/tags/') }}
       GOARCH: amd64
+      runs-on: macos-13
     secrets: inherit
   darwin_arm64:
     uses: ./.github/workflows/build-darwin.yaml
     with:
+      upload-artifact: ${{ startsWith(github.ref, 'refs/tags/') }}
       GOARCH: arm64
+      runs-on: macos-14
     secrets: inherit
   release:
     concurrency: release
@@ -45,27 +47,23 @@ jobs:
     needs:
       - linux_386
       - linux_amd64
-      - linux_arm
       - linux_arm64
       - darwin_amd64
       - darwin_arm64
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ needs.linux_386.outputs.artifact }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ needs.linux_amd64.outputs.artifact }}
-      - uses: actions/download-artifact@v3
-        with:
-          name: ${{ needs.linux_arm.outputs.artifact }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ needs.linux_arm64.outputs.artifact }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ needs.darwin_amd64.outputs.artifact }}
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4.1.7
         with:
           name: ${{ needs.darwin_arm64.outputs.artifact }}
       - name: Release
@@ -74,7 +72,6 @@ jobs:
           files: |
             ${{ needs.linux_386.outputs.artifact }}
             ${{ needs.linux_amd64.outputs.artifact }}
-            ${{ needs.linux_arm.outputs.artifact }}
             ${{ needs.linux_arm64.outputs.artifact }}
             ${{ needs.darwin_amd64.outputs.artifact }}
             ${{ needs.darwin_arm64.outputs.artifact }}
@@ -88,14 +85,13 @@ jobs:
     needs:
       - linux_386
       - linux_amd64
-      - linux_arm
       - linux_arm64
       - darwin_amd64
-      # - darwin_arm64
+      - darwin_arm64
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-    - name: Coveralls Finished
-      uses: coverallsapp/github-action@v1
-      with:
-        parallel-finished: true
+      - name: Coveralls Finished
+        uses: coverallsapp/github-action@v2.3.0
+        with:
+          parallel-finished: true
