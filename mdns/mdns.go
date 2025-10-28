@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
+	"github.com/fornellas/slogxt/log"
 	"github.com/godbus/dbus/v5"
 	"github.com/holoplot/go-avahi"
 )
@@ -21,7 +23,7 @@ type Service struct {
 	Port      uint16
 }
 
-func newServiceFromAvahi(service avahi.Service) (Service, error) {
+func NewServiceFromAvahi(service avahi.Service) (Service, error) {
 	iface, err := net.InterfaceByIndex(int(service.Interface))
 	if err != nil {
 		return Service{}, err
@@ -99,25 +101,48 @@ func (m *MDNS) BrowseServices(
 	domain string,
 	timeout time.Duration,
 ) ([]Service, error) {
+	ctx, logger := log.MustWithGroupAttrs(
+		ctx,
+		"MDNS.BrowseServices",
+		"ifaceName", ifaceName,
+		"proto", proto,
+		"serviceType", serviceType,
+		"domain", domain,
+		"timeout", timeout,
+	)
+	defer logger.Debug("Finished")
+
+	logger.Debug("Getting interface name")
 	var iface int32
 	iface, err := getIfaceIdxFromName(ifaceName)
 	if err != nil {
 		return nil, err
 	}
 
-	dbusConn, err := dbus.SystemBus()
+	logger.Debug("Getting D-BUS connection")
+	dbusConn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, err
 	}
-	defer func() { dbusConn.Close() }()
+	defer func() {
+		logger.Debug("Closing D-BUS connection")
+		dbusConn.Close()
+		logger.Debug("Closed D-BUS connection")
+	}()
 
+	logger.Debug("Getting Avahi server connection")
 	avahiServer, err := avahi.ServerNew(dbusConn)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { avahiServer.Close() }()
+	defer func() {
+		logger.Debug("Closing Avahi server connection")
+		avahiServer.Close()
+		logger.Debug("Closed Avahi server connection")
+	}()
 
-	sb, err := avahiServer.ServiceBrowserNew(
+	logger.Debug("Browsing")
+	avahiServiceBrowser, err := avahiServer.ServiceBrowserNew(
 		iface,
 		int32(proto),
 		serviceType,
@@ -128,33 +153,45 @@ func (m *MDNS) BrowseServices(
 		return nil, err
 	}
 
-	var avahiService avahi.Service
 	var services []Service
+	var servicesMu sync.Mutex
+	var wg sync.WaitGroup
 	timeoutCh := time.After(timeout)
 	var done bool
 	for {
 		select {
-		case avahiService = <-sb.AddChannel:
-			avahiService, err = avahiServer.ResolveService(
-				avahiService.Interface,
-				avahiService.Protocol,
-				avahiService.Name,
-				avahiService.Type,
-				avahiService.Domain,
-				avahiService.Protocol,
-				0,
-			)
-			if err != nil {
-				return nil, err
-			}
+		case avahiService := <-avahiServiceBrowser.AddChannel:
+			wg.Go(func() {
+				_, logger := log.MustWithGroup(ctx, avahiService.Name)
+				logger.Debug("Resolving Avahi service")
+				avahiService, err = avahiServer.ResolveService(
+					avahiService.Interface,
+					avahiService.Protocol,
+					avahiService.Name,
+					avahiService.Type,
+					avahiService.Domain,
+					avahiService.Protocol,
+					0,
+				)
+				logger.Debug("Resolved Avahi service", "service", avahiService)
+				if err != nil {
+					logger.Warn("Failed to resolve", "err", err)
+					return
+				}
 
-			service, err := newServiceFromAvahi(avahiService)
-			if err != nil {
-				return nil, err
-			}
+				service, err := NewServiceFromAvahi(avahiService)
+				if err != nil {
+					logger.Error("NewServiceFromAvahi", "err", err)
+					return
+				}
 
-			services = append(services, service)
+				servicesMu.Lock()
+				logger.Debug("Resolved")
+				services = append(services, service)
+				servicesMu.Unlock()
+			})
 		case <-timeoutCh:
+			logger.Debug("Browse timeout")
 			done = true
 		}
 		if done {
@@ -162,32 +199,56 @@ func (m *MDNS) BrowseServices(
 		}
 	}
 
+	wg.Wait()
+
 	return services, nil
 }
 
 func (m *MDNS) ResolveHost(
+	ctx context.Context,
 	host string,
 	ifaceName string,
 	proto Proto,
 ) (net.IP, error) {
+	_, logger := log.MustWithGroupAttrs(
+		ctx,
+		"MDNS.ResolveHost",
+		"host", host,
+		"ifaceName", ifaceName,
+		"proto", proto,
+	)
+	defer logger.Debug("Finished")
+
 	var iface int32
+	logger.Debug("Getting interface ID")
 	iface, err := getIfaceIdxFromName(ifaceName)
 	if err != nil {
 		return nil, err
 	}
 
-	dbusConn, err := dbus.SystemBus()
+	logger.Debug("Getting D-BUS connection")
+	dbusConn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, err
 	}
-	defer func() { dbusConn.Close() }()
+	defer func() {
+		logger.Debug("Closing D-BUS connection")
+		dbusConn.Close()
+		logger.Debug("Closed D-BUS connection")
+	}()
 
+	logger.Debug("Getting Avahi server connection")
 	avahiServer, err := avahi.ServerNew(dbusConn)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { avahiServer.Close() }()
+	defer func() {
+		logger.Debug("Closing Avahi server connection")
+		avahiServer.Close()
+		logger.Debug("Closed Avahi server connection")
+	}()
 
+	logger.Debug("Resolving mDNS host")
 	hostName, err := avahiServer.ResolveHostName(
 		iface,
 		int32(proto),
@@ -203,6 +264,8 @@ func (m *MDNS) ResolveHost(
 	if ip == nil {
 		return nil, fmt.Errorf("invalid IP: %v", hostName.Address)
 	}
+
+	logger.Debug("Resolved", "IP", ip)
 
 	return ip, nil
 }

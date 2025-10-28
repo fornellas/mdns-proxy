@@ -18,26 +18,26 @@ import (
 
 var baseDomain string
 
-var defaultAddr = ":7234"
-var addr string
+var defaultListenAddr = ":7234"
+var listenAddr string
 
-var defaultService = "_http._tcp"
-var service string
+var defaultMdnsService = "_http._tcp"
+var mdnsService string
 
 var defaultMdnsDomain = "local"
 var mdnsDomain string
 
-var defaultTimeout = time.Second
-var timeout time.Duration
+var defaultMdnsBrowseTimeout = time.Second
+var mdnsBrowseTimeout time.Duration
 
-var defaultIntterfaceStr = mdns.AnyIface
-var interfaceStr string
+var defaultMdnsIntterfaceName = mdns.AnyIface
+var mdnsInterfaceName string
 
-var defaultDisableIPv4 = false
-var disableIPv4 bool
+var defaultMdnsDisableIPv4 = false
+var mdnsDisableIPv4 bool
 
-var defaultDisableIPv6 = false
-var disableIPv6 bool
+var defaultMdnsDisableIPv6 = false
+var mdnsDisableIPv6 bool
 
 var ServerCmd = &cobra.Command{
 	Use:   "server",
@@ -48,28 +48,30 @@ var ServerCmd = &cobra.Command{
 
 		ctx, logger := log.MustWithGroupAttrs(
 			ctx,
-			"Server",
+			"server",
 			"base-domain", baseDomain,
-			"addr", addr,
-			"service", service,
+			"listen-addr", listenAddr,
+			"mdns-service", mdnsService,
 			"mdns-domain", mdnsDomain,
-			"timeout", timeout,
-			"interface", interfaceStr,
-			"disable-ipv4", disableIPv4,
-			"disable-ipv6", disableIPv6,
+			"mdns-browse-timeout", mdnsBrowseTimeout,
+			"mdns-interface-name", mdnsInterfaceName,
+			"mdns-disable-ipv4", mdnsDisableIPv4,
+			"mdns-disable-ipv6", mdnsDisableIPv6,
 		)
 		cmd.SetContext(ctx)
 
 		srv, err := server.NewServer(
 			ctx,
-			addr,
-			baseDomain,
-			interfaceStr,
-			service,
-			mdnsDomain,
-			timeout,
-			disableIPv4,
-			disableIPv6,
+			server.Config{
+				ListenAddr:        listenAddr,
+				BaseDomain:        baseDomain,
+				MdnsInterfaceName: mdnsInterfaceName,
+				MdnsService:       mdnsService,
+				MdnsDomain:        mdnsDomain,
+				MdnsBrowseTimeout: mdnsBrowseTimeout,
+				MdnsDisableIPv4:   mdnsDisableIPv4,
+				MdnsDisableIPv6:   mdnsDisableIPv6,
+			},
 		)
 		if err != nil {
 			logger.Error("Error starting server", "err", err)
@@ -97,56 +99,57 @@ var ServerCmd = &cobra.Command{
 }
 
 func init() {
-	Cmd.Flags().StringVarP(
+	ServerCmd.Flags().StringVarP(
 		&baseDomain, "base-domain", "", "",
 		"Base domain where the proxy will be accessed",
 	)
-	Cmd.MarkFlagRequired("base-domain")
+	ServerCmd.MarkFlagRequired("base-domain")
 
-	Cmd.Flags().StringVarP(
-		&addr, "address", "", defaultAddr,
+	ServerCmd.Flags().StringVarP(
+		&listenAddr, "listen-address", "", defaultListenAddr,
 		"TCP address for the server to listen on.",
 	)
 
-	Cmd.PersistentFlags().StringVarP(
-		&service, "service", "s", defaultService,
-		"Service",
+	ServerCmd.PersistentFlags().StringVarP(
+		&mdnsService, "mdns-service", "s", defaultMdnsService,
+		"mDNS Service",
 	)
 
-	Cmd.PersistentFlags().StringVarP(
+	ServerCmd.PersistentFlags().StringVarP(
 		&mdnsDomain, "mdns-domain", "d", defaultMdnsDomain,
 		"mDNS Domain",
 	)
 
-	Cmd.PersistentFlags().DurationVarP(
-		&timeout, "timeout", "t", defaultTimeout,
-		"Timeout",
+	ServerCmd.PersistentFlags().DurationVarP(
+		&mdnsBrowseTimeout, "mdns-timeout", "t", defaultMdnsBrowseTimeout,
+		"mDNS browse timeout",
 	)
 
-	Cmd.PersistentFlags().StringVarP(
-		&interfaceStr, "interface", "i", defaultIntterfaceStr,
-		"Multicast interface to use",
+	ServerCmd.PersistentFlags().StringVarP(
+		&mdnsInterfaceName, "mdns-interface-name", "i", defaultMdnsIntterfaceName,
+		"mDNS multicast interface to use",
 	)
 
-	Cmd.PersistentFlags().BoolVarP(
-		&disableIPv4, "disable-ipv4", "", defaultDisableIPv4,
-		"Whether to disable usage of IPv4 for MDNS operations. Does not affect discovered addresses.",
+	ServerCmd.PersistentFlags().BoolVarP(
+		&mdnsDisableIPv4, "mdns-disable-ipv4", "", defaultMdnsDisableIPv4,
+		"Whether to disable usage of IPv4 for mDNS operations. Does not affect discovered addresses.",
 	)
 
-	Cmd.PersistentFlags().BoolVarP(
-		&disableIPv6, "disable-ipv6", "", defaultDisableIPv6,
-		"Whether to disable usage of IPv6 for MDNS operations. Does not affect discovered addresses.",
+	ServerCmd.PersistentFlags().BoolVarP(
+		&mdnsDisableIPv6, "mdns-disable-ipv6", "", defaultMdnsDisableIPv6,
+		"Whether to disable usage of IPv6 for mDNS operations. Does not affect discovered addresses.",
 	)
 }
 
 func init() {
+	Cmd.AddCommand(ServerCmd)
 	resetFlagsFns = append(resetFlagsFns, func() {
-		addr = defaultAddr
-		service = defaultService
+		listenAddr = defaultListenAddr
+		mdnsService = defaultMdnsService
 		mdnsDomain = defaultMdnsDomain
-		timeout = defaultTimeout
-		interfaceStr = defaultIntterfaceStr
-		disableIPv4 = defaultDisableIPv4
-		disableIPv6 = defaultDisableIPv6
+		mdnsBrowseTimeout = defaultMdnsBrowseTimeout
+		mdnsInterfaceName = defaultMdnsIntterfaceName
+		mdnsDisableIPv4 = defaultMdnsDisableIPv4
+		mdnsDisableIPv6 = defaultMdnsDisableIPv6
 	})
 }
