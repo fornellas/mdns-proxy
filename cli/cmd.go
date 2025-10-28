@@ -8,7 +8,6 @@ import (
 
 	"github.com/fornellas/mdns-proxy/cli/lib"
 	"github.com/fornellas/mdns-proxy/cli/server"
-	"github.com/fornellas/mdns-proxy/cli/version"
 	"github.com/fornellas/mdns-proxy/log"
 )
 
@@ -62,7 +61,4 @@ func init() {
 
 	Cmd.AddCommand(server.Cmd)
 	resetFuncs = append(resetFuncs, server.Reset)
-
-	Cmd.AddCommand(version.Cmd)
-	resetFuncs = append(resetFuncs, version.Reset)
 }
