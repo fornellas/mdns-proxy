@@ -1,4 +1,4 @@
-package server
+package cli
 
 import (
 	"net/http"
@@ -7,12 +7,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/fornellas/mdns-proxy/mdns"
 
-	"github.com/fornellas/mdns-proxy/log"
+	"github.com/fornellas/slogxt/log"
+
 	"github.com/fornellas/mdns-proxy/server"
 )
 
@@ -39,14 +39,26 @@ var disableIPv4 bool
 var defaultDisableIPv6 = false
 var disableIPv6 bool
 
-var Cmd = &cobra.Command{
+var ServerCmd = &cobra.Command{
 	Use:   "server",
 	Short: "Start a server that proxies requests to discovered mDNS hosts.",
 	Args:  cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		ctx := cmd.Context()
 
-		logger := log.GetLogger(ctx)
+		ctx, logger := log.MustWithGroupAttrs(
+			ctx,
+			"Server",
+			"base-domain", baseDomain,
+			"addr", addr,
+			"service", service,
+			"mdns-domain", mdnsDomain,
+			"timeout", timeout,
+			"interface", interfaceStr,
+			"disable-ipv4", disableIPv4,
+			"disable-ipv6", disableIPv6,
+		)
+		cmd.SetContext(ctx)
 
 		srv, err := server.NewServer(
 			ctx,
@@ -60,7 +72,8 @@ var Cmd = &cobra.Command{
 			disableIPv6,
 		)
 		if err != nil {
-			logrus.Fatalf("Error starting server: %v", err)
+			logger.Error("Error starting server", "err", err)
+			Exit(1)
 		}
 
 		go func() {
@@ -70,13 +83,14 @@ var Cmd = &cobra.Command{
 
 			logger.Info("Shutting down...")
 			if err := srv.Shutdown(ctx); err != nil {
-				logger.Errorf("Shutdown request failed: %v", err)
+				logger.Error("Shutdown request failed", "err", err)
 			}
 		}()
 
-		logger.Infof("Starting server on %s", addr)
+		logger.Info("Starting server")
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			logger.Fatalf("Server error: %v", err)
+			logger.Error("Listen and server error", "err", err)
+			Exit(1)
 		}
 		logger.Info("Exiting")
 	},
@@ -125,12 +139,14 @@ func init() {
 	)
 }
 
-func Reset() {
-	addr = defaultAddr
-	service = defaultService
-	mdnsDomain = defaultMdnsDomain
-	timeout = defaultTimeout
-	interfaceStr = defaultIntterfaceStr
-	disableIPv4 = defaultDisableIPv4
-	disableIPv6 = defaultDisableIPv6
+func init() {
+	resetFlagsFns = append(resetFlagsFns, func() {
+		addr = defaultAddr
+		service = defaultService
+		mdnsDomain = defaultMdnsDomain
+		timeout = defaultTimeout
+		interfaceStr = defaultIntterfaceStr
+		disableIPv4 = defaultDisableIPv4
+		disableIPv6 = defaultDisableIPv6
+	})
 }

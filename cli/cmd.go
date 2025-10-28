@@ -3,15 +3,13 @@ package cli
 import (
 	"os"
 
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
-	"github.com/fornellas/mdns-proxy/cli/lib"
-	"github.com/fornellas/mdns-proxy/cli/server"
-	"github.com/fornellas/mdns-proxy/log"
+	slogxtCobra "github.com/fornellas/slogxt/cobra"
+	"github.com/fornellas/slogxt/log"
 )
 
-var ExitFunc func(int) = func(code int) { os.Exit(code) }
+var Exit func(int) = func(code int) { os.Exit(code) }
 
 var logLevelStr string
 var defaultLogLevelStr = "info"
@@ -23,30 +21,30 @@ var Cmd = &cobra.Command{
 	Short: "Go Build Tempmlate.",
 	Args:  cobra.NoArgs,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if forceColor {
-			color.NoColor = false
-		}
-		cmd.SetContext(log.SetLoggerValue(
-			cmd.Context(), cmd.OutOrStderr(), logLevelStr, ExitFunc,
-		))
+		ctx := log.WithLogger(
+			cmd.Context(),
+			slogxtCobra.GetLogger(cmd.OutOrStderr()),
+			// TODO add With("opt", value),
+		)
+		cmd.SetContext(ctx)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		logger := log.GetLogger(cmd.Context())
+		logger := log.MustLogger(cmd.Context())
 		if err := cmd.Help(); err != nil {
-			logger.Fatal(err)
+			logger.Error("failed to display help", "error", err)
+			Exit(1)
 		}
 	},
 }
 
-var resetFuncs []func()
+var resetFlagsFns = []func(){
+	func() { slogxtCobra.Reset() },
+}
 
-func Reset() {
-	logLevelStr = defaultLogLevelStr
-	forceColor = defaultForceColor
-	for _, resetFunc := range resetFuncs {
-		resetFunc()
+func ResetFlags() {
+	for _, resetFlagFn := range resetFlagsFns {
+		resetFlagFn()
 	}
-	lib.Reset()
 }
 
 func init() {
@@ -58,7 +56,10 @@ func init() {
 		&forceColor, "force-color", "", defaultForceColor,
 		"Force colored output",
 	)
+	Cmd.AddCommand(ServerCmd)
 
-	Cmd.AddCommand(server.Cmd)
-	resetFuncs = append(resetFuncs, server.Reset)
+	resetFlagsFns = append(resetFlagsFns, func() {
+		logLevelStr = defaultLogLevelStr
+		forceColor = defaultForceColor
+	})
 }

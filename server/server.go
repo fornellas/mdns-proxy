@@ -11,9 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
-	"github.com/fornellas/mdns-proxy/log"
 	"github.com/fornellas/mdns-proxy/mdns"
 )
 
@@ -61,15 +58,19 @@ func handleListMdnsHosts(
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
-	logger := log.GetLogger(ctx)
-	logger.WithFields(logrus.Fields{
-		"baseDomain": baseDomain,
-		"ifaceName":  ifaceName,
-		"service":    service,
-		"mdnsDomain": mdnsDomain,
-		"timeout":    timeout,
-		"proto":      proto,
-	}).Info("handleListMdnsHosts")
+	// ctx, logger := log.MustWithGroupAttrs(
+	// 	ctx,
+	// 	"handleListMdnsHosts",
+	//  "baseDomain", baseDomain,
+	//  "ifaceName", ifaceName,
+	//  "service", service,
+	//  "mdnsDomain", mdnsDomain,
+	//  "timeout", timeout,
+	//  "proto", proto,
+	//  "w", w,
+	//  "req", req,
+	// )
+	// logger.Info("handleListMdnsHosts")
 	m, err := mdns.NewMDNS()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -145,7 +146,7 @@ func handleListMdnsHosts(
 }
 
 func handleProxyMdnsHosts(
-	ctx context.Context,
+	_ context.Context,
 	baseDomain string,
 	ifaceName string,
 	mdnsDomain string,
@@ -153,13 +154,6 @@ func handleProxyMdnsHosts(
 	w http.ResponseWriter,
 	req *http.Request,
 ) {
-	logger := log.GetLogger(ctx)
-	logger.WithFields(logrus.Fields{
-		"baseDomain": baseDomain,
-		"ifaceName":  ifaceName,
-		"mdnsDomain": mdnsDomain,
-		"proto":      proto,
-	}).Info("handleProxyMdnsHosts")
 	m, err := mdns.NewMDNS()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -176,7 +170,6 @@ func handleProxyMdnsHosts(
 
 	host := fmt.Sprintf("%s.%s", strings.TrimSuffix(addr, fmt.Sprintf(".%s", baseDomain)), mdnsDomain)
 
-	logger.Info("ResolveHost")
 	ip, err := m.ResolveHost(
 		host,
 		ifaceName,
@@ -193,7 +186,6 @@ func handleProxyMdnsHosts(
 	req.Header["Host"] = []string{host}
 	req.Host = host
 
-	logger.Info("ServeHTTP")
 	httputil.NewSingleHostReverseProxy(&url.URL{
 		Scheme: "http",
 		Host:   ip.String(),
@@ -212,16 +204,6 @@ func getRootRouter(
 	proto mdns.Proto,
 ) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, req *http.Request) {
-		logger := log.GetLogger(ctx)
-		logger.WithFields(logrus.Fields{
-			"Method":     req.Method,
-			"URL":        req.URL.String(),
-			"Proto":      req.Proto,
-			"Header":     req.Header,
-			"Host":       req.Host,
-			"RemoteAddr": req.RemoteAddr,
-		}).Info("Request received")
-
 		hostSlice := strings.Split(req.Host, ":")
 		host := hostSlice[0]
 		if host == baseDomain {
