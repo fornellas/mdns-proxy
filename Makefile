@@ -342,10 +342,11 @@ update-deps: go-update
 
 # go get -u
 
-.PHONY: go-get-u-t
-go-get-u-t: go go-mod-tidy
+.PHONY: go-get-u
+go-get-u: go go-mod-tidy
 	$(GO) get -u ./...
-update-deps: go-get-u-t
+	$(GO) get -u tool
+update-deps: go-get-u
 
 ##
 ## Test
