@@ -18,10 +18,10 @@ jobs:
     steps:
       # Checkout
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       # Setup Go
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # Make
@@ -30,7 +30,7 @@ jobs:
         shell: bash
       # Cache
       - name: Cache
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         with:
           path: /tmp/XDG_CACHE_HOME
           key: darwin-${{ inputs.GOARCH }}-${{ hashFiles('**/go.sum', '**/*.go') }}
@@ -63,7 +63,7 @@ jobs:
           fi
         shell: bash
       # Upload
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v7
         with:
           name: mdns-proxy.darwin.${{ inputs.GOARCH }}.gz
           path: mdns-proxy.darwin.${{ inputs.GOARCH }}.gz
