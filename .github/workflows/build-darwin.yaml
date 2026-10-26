@@ -2,15 +2,23 @@ name: build-darwin
 on:
   workflow_call:
     inputs:
+      upload-artifact:
+        required: false
+        type: boolean
+        default: false
       GOARCH:
         required: true
         type: string
+      runs-on:
+        required: false
+        type: string
+        default: macos-latest
     outputs:
       artifact:
         value: mdns-proxy.darwin.${{ inputs.GOARCH }}.gz
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runs-on }}
     env:
         GOOS: darwin
         GOARCH: ${{ inputs.GOARCH }}
@@ -64,6 +72,7 @@ jobs:
         shell: bash
       # Upload
       - uses: actions/upload-artifact@v7
+        if: ${{ inputs.upload-artifact == true }}
         with:
           name: mdns-proxy.darwin.${{ inputs.GOARCH }}.gz
           path: mdns-proxy.darwin.${{ inputs.GOARCH }}.gz
